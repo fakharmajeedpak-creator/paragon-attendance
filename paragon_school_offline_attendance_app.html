@@ -1,0 +1,1499 @@
+<!DOCTYPE html>
+<html lang="ur" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#0f766e" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Paragon Attendance" />
+  <title>پیراگون پبلک سکول — آف لائن حاضری و رپورٹ ایپ</title>
+
+  <!-- Tailwind CSS via CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- html5-qrcode library via CDN for continuous camera QR/Barcode scanning -->
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+
+  <!-- Noto Nastaliq Urdu & Inter fonts for clean Urdu + English mobile typography -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Nastaliq+Urdu:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            urdu: ['"Noto Nastaliq Urdu"', 'Inter', 'sans-serif'],
+            sans: ['Inter', '"Noto Nastaliq Urdu"', 'sans-serif']
+          }
+        }
+      }
+    };
+  </script>
+
+  <style>
+    /* Base styling for comfortable Urdu + English mobile reading */
+    body {
+      font-family: 'Noto Nastaliq Urdu', 'Inter', sans-serif;
+      background-color: #f1f5f9;
+      color: #0f172a;
+      -webkit-tap-highlight-color: transparent;
+      overflow-x: hidden;
+    }
+
+    .ltr-num,
+    .eng-text {
+      font-family: 'Inter', sans-serif;
+      direction: ltr;
+      unicode-bidi: isolate;
+    }
+
+    /* Smooth scanner frame styling */
+    #qr-reader {
+      width: 100%;
+      border-radius: 1rem;
+      overflow: hidden;
+      background: #090d16;
+      min-height: 250px;
+    }
+
+    #qr-reader video {
+      border-radius: 1rem;
+      object-fit: cover !important;
+    }
+
+    /* Hide default html5-qrcode clutter where unnecessary */
+    #qr-reader__dashboard_section_csr span {
+      font-size: 12px !important;
+    }
+
+    /* Toast animation */
+    @keyframes slideUp {
+      from {
+        transform: translateY(16px);
+        opacity: 0;
+      }
+      to {
+        transform: translateY(0);
+        opacity: 1;
+      }
+    }
+
+    .toast-anim {
+      animation: slideUp 0.22s ease-out forwards;
+    }
+  </style>
+</head>
+<body class="min-h-screen pb-24">
+
+  <!-- Top App Header -->
+  <header class="sticky top-0 z-30 bg-gradient-to-l from-teal-800 via-teal-700 to-emerald-800 text-white shadow-md">
+    <div class="max-w-3xl mx-auto px-4 py-3 flex items-center justify-between gap-2">
+      <div>
+        <div class="flex items-center gap-2">
+          <span class="inline-flex items-center justify-center w-9 h-9 rounded-xl bg-white/15 text-lg font-bold">🏫</span>
+          <div>
+            <h1 class="text-base sm:text-lg font-bold leading-snug">پیراگون پبلک سکول، ملتان</h1>
+            <p class="text-[11px] text-teal-100 leading-tight">آف لائن گیٹ حاضری و خودکار رپورٹ سسٹم • Offline Ready</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-2">
+        <span id="headerStudentBadge" class="px-2.5 py-1 rounded-full bg-white/15 text-xs font-semibold ltr-num">
+          0 Students
+        </span>
+        <button
+          id="btnInstallGuide"
+          type="button"
+          onclick="toggleGuideModal(true)"
+          class="px-2.5 py-1.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 text-xs font-bold shadow transition"
+          title="اینڈرائیڈ پر ایپ کیسے انسٹال کریں"
+        >
+          📱 انسٹال گائیڈ
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Floating Status / Toast Banner -->
+  <div id="toastContainer" class="fixed top-16 left-1/2 -translate-x-1/2 z-50 w-[92%] max-w-md pointer-events-none space-y-2"></div>
+
+  <!-- Main Container -->
+  <main class="max-w-3xl mx-auto px-3 sm:px-4 pt-4 space-y-4">
+
+    <!-- Quick Offline Readiness Alert if no students loaded yet -->
+    <div id="noStudentsBanner" class="hidden bg-amber-50 border border-amber-300 text-amber-950 rounded-2xl p-3.5 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+      <div class="text-xs sm:text-sm leading-relaxed">
+        <strong>پہلا قدم:</strong> ابھی تک کوئی طالبعلم کا ڈیٹا محفوظ نہیں ہے۔ براہِ کرم <strong>CSV ڈیٹا</strong> ٹیب میں جا کر بچوں کی لسٹ پیسٹ یا اپ لوڈ کریں۔
+      </div>
+      <button
+        type="button"
+        onclick="switchTab('csv')"
+        class="shrink-0 px-3.5 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold shadow"
+      >
+        CSV لوڈ کریں ←
+      </button>
+    </div>
+
+    <!-- ========================================================= -->
+    <!-- TAB 1: CONTINUOUS / BATCH GATE SCANNER                       -->
+    <!-- ========================================================= -->
+    <section id="tab-scanner" class="space-y-4">
+      <!-- Scanner Control Card -->
+      <div class="bg-white rounded-2xl shadow-sm border border-slate-200/80 p-4 space-y-3.5">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h2 class="text-base sm:text-lg font-bold text-slate-900">📷 مسلسل گیٹ اسکینر (Continuous Gate Scanner)</h2>
+            <p class="text-xs text-slate-500">کیمرہ کھلا رہے گا — بچے کارڈ دکھاتے جائیں، بیپ بجے گی، کوئی Back نہیں دبانا پڑے گا</p>
+          </div>
+          <span id="scannerStatusPill" class="px-3 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-700">
+            کیمرہ بند
+          </span>
+        </div>
+
+        <!-- Start / Stop & Cooldown Controls -->
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+          <button
+            id="btnStartCamera"
+            type="button"
+            onclick="startScanner()"
+            class="sm:col-span-2 py-3 px-4 rounded-xl bg-teal-600 hover:bg-teal-700 active:scale-[0.99] text-white font-bold text-sm shadow transition flex items-center justify-center gap-2"
+          >
+            <span>▶ کیمرہ شروع کریں (Start Camera)</span>
+          </button>
+          <button
+            id="btnStopCamera"
+            type="button"
+            onclick="stopScanner()"
+            disabled
+            class="py-3 px-4 rounded-xl bg-rose-600 hover:bg-rose-700 disabled:bg-slate-200 disabled:text-slate-400 text-white font-bold text-sm shadow transition flex items-center justify-center gap-2"
+          >
+            <span>⏹ کیمرہ بند کریں</span>
+          </button>
+        </div>
+
+        <!-- Cooldown & Sound Settings Row -->
+        <div class="flex flex-wrap items-center justify-between gap-3 pt-1 border-t border-slate-100 text-xs">
+          <label class="flex items-center gap-2 text-slate-700 font-medium">
+            <span>دوبارہ اسکین وقفہ (Cooldown):</span>
+            <select id="cooldownSelect" onchange="saveSettings()" class="px-2.5 py-1.5 rounded-lg border border-slate-300 bg-slate-50 font-semibold ltr-num">
+              <option value="2">2 sec</option>
+              <option value="5" selected>5 sec</option>
+              <option value="10">10 sec</option>
+              <option value="15">15 sec</option>
+            </select>
+          </label>
+
+          <label class="flex items-center gap-2 cursor-pointer text-slate-700 font-medium">
+            <input id="soundToggle" type="checkbox" checked onchange="saveSettings()" class="w-4 h-4 accent-teal-600 rounded" />
+            <span>بیپ آواز آن رکھیں (Beep Sound)</span>
+          </label>
+
+          <button
+            type="button"
+            onclick="testBeep()"
+            class="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold"
+          >
+            🔊 بیپ چیک
+          </button>
+        </div>
+
+        <!-- Live Camera Preview Box -->
+        <div id="qr-reader"></div>
+
+        <!-- Camera Error / Offline Fallback Notice -->
+        <div id="cameraFallbackBox" class="hidden rounded-xl bg-slate-50 border border-slate-200 p-3 text-xs text-slate-600 space-y-1.5">
+          <p class="font-bold text-slate-800">کیمرہ شروع نہ ہو یا آپ بغیر کیمرے کے ٹیسٹ/اینٹری کرنا چاہیں:</p>
+          <p>• یقینی بنائیں کہ براؤزر میں کیمرہ کی اجازت (<span class="eng-text">Allow Camera</span>) دی گئی ہو۔</p>
+          <p>• نیچے دیے گئے <strong>فوری آئی ڈی ان پٹ</strong> خانے میں 1 سے 4 ہندسوں کی ID لکھ کر <span class="eng-text">Enter</span> دبائیں۔</p>
+        </div>
+      </div>
+
+      <!-- Fast Manual / Backup / Test ID Entry Box -->
+      <div class="bg-white rounded-2xl shadow-sm border border-slate-200/80 p-4 space-y-2.5">
+        <label for="manualIdInput" class="block text-sm font-bold text-slate-800">
+          ⚡ فوری آئی ڈی انٹری / ٹیسٹ (Manual / Keyboard ID Entry)
+        </label>
+        <p class="text-xs text-slate-500">
+          طالبعلم کی 1 سے 4 ہندسوں والی ID لکھیں (یا کیو آر کوڈ لنک پیسٹ کریں) اور <span class="eng-text font-semibold">Enter</span> یا بٹن دبائیں:
+        </p>
+        <div class="flex gap-2">
+          <input
+            id="manualIdInput"
+            type="text"
+            inputmode="numeric"
+            placeholder="مثال: 175 یا 1550"
+            onkeydown="if(event.key==='Enter'){ event.preventDefault(); handleManualIdSubmit(); }"
+            class="flex-1 px-3.5 py-2.5 rounded-xl border border-slate-300 focus:border-teal-600 focus:ring-2 focus:ring-teal-500/20 outline-none text-base font-bold ltr-num"
+          />
+          <button
+            type="button"
+            onclick="handleManualIdSubmit()"
+            class="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm shadow transition shrink-0"
+          >
+            حاضری لگائیں ✓
+          </button>
+        </div>
+      </div>
+
+      <!-- Instant Scan Feedback Banner -->
+      <div id="scanFeedbackCard" class="bg-white rounded-2xl shadow-sm border-2 border-slate-200 p-4 transition-all">
+        <div class="text-xs font-bold text-slate-400 mb-1">تازہ ترین اسکین کا نتیجہ (Last Scan Status)</div>
+        <div id="scanFeedbackContent" class="text-sm text-slate-500 py-2">
+          ابھی کوئی کارڈ اسکین نہیں ہوا۔ کیمرہ آن کریں یا اوپر ID درج کر کے حاضری شروع کریں۔
+        </div>
+      </div>
+
+      <!-- Recent Scans Today Strip -->
+      <div class="bg-white rounded-2xl shadow-sm border border-slate-200/80 p-4 space-y-2.5">
+        <div class="flex items-center justify-between">
+          <h3 class="text-sm font-bold text-slate-800">🕒 آج کی حالیہ حاضری (Recent Scans Today)</h3>
+          <span id="todayScanCountPill" class="px-2.5 py-0.5 rounded-full bg-teal-50 text-teal-700 text-xs font-bold ltr-num">
+            0 Present
+          </span>
+        </div>
+        <div id="recentScansList" class="divide-y divide-slate-100 max-h-60 overflow-y-auto text-xs">
+          <p class="text-slate-400 py-3 text-center">آج کی حاضری کا کوئی ریکارڈ موجود نہیں۔</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========================================================= -->
+    <!-- TAB 2: LIVE ATTENDANCE & REPORTS                          -->
+    <!-- ========================================================= -->
+    <section id="tab-reports" class="hidden space-y-4">
+      <!-- Report Header & Date Controls -->
+      <div class="bg-white rounded-2xl shadow-sm border border-slate-200/80 p-4 space-y-3">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 class="text-base sm:text-lg font-bold text-slate-900">📊 لائیو حاضری و مکمل رپورٹ (Attendance & Reports)</h2>
+            <p class="text-xs text-slate-500">پورے اسکول اور ہر کلاس کے حاضر، غیر حاضر اور فیصد کا خودکار حساب</p>
+          </div>
+
+          <div class="flex items-center gap-2">
+            <label for="reportDateInput" class="text-xs font-bold text-slate-700">تاریخ:</label>
+            <input
+              id="reportDateInput"
+              type="date"
+              onchange="renderReports()"
+              class="px-3 py-1.5 rounded-xl border border-slate-300 text-xs font-bold ltr-num bg-slate-50"
+            />
+          </div>
+        </div>
+
+        <!-- Action Buttons: Export CSV & Clear Date Attendance -->
+        <div class="flex flex-wrap gap-2 pt-2 border-t border-slate-100">
+          <button
+            type="button"
+            onclick="exportAttendanceCSV()"
+            class="px-3.5 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold shadow transition"
+          >
+            ⬇ حاضری CSV ڈاؤن لوڈ کریں
+          </button>
+          <button
+            type="button"
+            onclick="openClearAttendanceModal()"
+            class="px-3.5 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold transition"
+          >
+            🗑 اس دن کی حاضری صاف کریں
+          </button>
+        </div>
+      </div>
+
+      <!-- Whole School Summary Cards -->
+      <div class="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
+        <div class="bg-white rounded-2xl p-3.5 shadow-sm border border-slate-200/80">
+          <div class="text-xs text-slate-500 font-semibold">کل طلبہ (Total)</div>
+          <div id="sumTotalStudents" class="text-2xl font-extrabold text-slate-900 mt-1 ltr-num">0</div>
+        </div>
+
+        <div class="bg-emerald-50 rounded-2xl p-3.5 shadow-sm border border-emerald-200">
+          <div class="text-xs text-emerald-800 font-bold">حاضر (Present)</div>
+          <div id="sumPresent" class="text-2xl font-extrabold text-emerald-700 mt-1 ltr-num">0</div>
+        </div>
+
+        <div class="bg-rose-50 rounded-2xl p-3.5 shadow-sm border border-rose-200">
+          <div class="text-xs text-rose-800 font-bold">غیر حاضر (Absent)</div>
+          <div id="sumAbsent" class="text-2xl font-extrabold text-rose-700 mt-1 ltr-num">0</div>
+        </div>
+
+        <div class="bg-teal-50 rounded-2xl p-3.5 shadow-sm border border-teal-200">
+          <div class="text-xs text-teal-800 font-bold">حاضری فیصد (Present %)</div>
+          <div id="sumPresentPct" class="text-2xl font-extrabold text-teal-700 mt-1 ltr-num">0.0%</div>
+        </div>
+
+        <div class="col-span-2 sm:col-span-1 bg-amber-50 rounded-2xl p-3.5 shadow-sm border border-amber-200">
+          <div class="text-xs text-amber-800 font-bold">غیر حاضری فیصد (Absent %)</div>
+          <div id="sumAbsentPct" class="text-2xl font-extrabold text-amber-700 mt-1 ltr-num">0.0%</div>
+        </div>
+      </div>
+
+      <!-- Class-Wise Summary Table -->
+      <div class="bg-white rounded-2xl shadow-sm border border-slate-200/80 p-4 space-y-3">
+        <div class="flex items-center justify-between gap-2">
+          <div>
+            <h3 class="text-sm sm:text-base font-bold text-slate-900">🏫 کلاس وائز رپورٹ (Class-Wise Summary)</h3>
+            <p class="text-[11px] text-slate-500">کسی کلاس کے غیر حاضر طلبہ کی فہرست دیکھنے کے لیے اس کے <span class="font-bold text-rose-600">Absent</span> عدد یا بٹن پر کلک کریں</p>
+          </div>
+        </div>
+
+        <div class="overflow-x-auto rounded-xl border border-slate-200">
+          <table class="w-full text-xs sm:text-sm text-right border-collapse">
+            <thead class="bg-slate-800 text-white">
+              <tr>
+                <th class="py-2.5 px-3 font-bold">Class</th>
+                <th class="py-2.5 px-2.5 font-bold text-center">Total</th>
+                <th class="py-2.5 px-2.5 font-bold text-center">Present</th>
+                <th class="py-2.5 px-2.5 font-bold text-center">Absent</th>
+                <th class="py-2.5 px-2.5 font-bold text-center">Present %</th>
+                <th class="py-2.5 px-2.5 font-bold text-center">Absent %</th>
+              </tr>
+            </thead>
+            <tbody id="classWiseTableBody" class="divide-y divide-slate-100 ltr-num">
+              <tr>
+                <td colspan="6" class="py-6 text-center text-slate-400">ڈیٹا لوڈ ہو رہا ہے...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Absent Students Drawer / Card for Selected Class -->
+      <div id="absentDetailsCard" class="hidden bg-white rounded-2xl shadow-sm border-2 border-rose-200 p-4 space-y-3">
+        <div class="flex items-center justify-between gap-2 border-b border-rose-100 pb-2">
+          <div>
+            <h4 id="absentClassTitle" class="text-sm sm:text-base font-bold text-rose-800">غیر حاضر طلبہ کی فہرست</h4>
+            <p id="absentClassSubtitle" class="text-xs text-slate-500"></p>
+          </div>
+          <div class="flex items-center gap-2">
+            <button
+              type="button"
+              onclick="copyAbsentList()"
+              class="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold"
+            >
+              📋 لسٹ کاپی کریں
+            </button>
+            <button
+              type="button"
+              onclick="closeAbsentDetails()"
+              class="px-2.5 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-bold"
+            >
+              ✕ بند کریں
+            </button>
+          </div>
+        </div>
+        <div id="absentStudentsList" class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs"></div>
+      </div>
+    </section>
+
+    <!-- ========================================================= -->
+    <!-- TAB 3: CSV DATA IMPORT / PASTE & MANAGEMENT                -->
+    <!-- ========================================================= -->
+    <section id="tab-csv" class="hidden space-y-4">
+      <div class="bg-white rounded-2xl shadow-sm border border-slate-200/80 p-4 space-y-3.5">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h2 class="text-base sm:text-lg font-bold text-slate-900">📄 بچوں کا CSV ڈیٹا لوڈ کریں (Student CSV Import)</h2>
+            <p class="text-xs text-slate-500">گوگل شیٹ یا ایکسل سے بچوں کی لسٹ کاپی کر کے یہاں پیسٹ کریں یا <span class="eng-text">.csv</span> فائل اپ لوڈ کریں</p>
+          </div>
+          <span id="csvTabStudentCount" class="px-3 py-1 rounded-full bg-teal-50 text-teal-800 text-xs font-bold ltr-num">
+            0 Saved
+          </span>
+        </div>
+
+        <!-- Helper Buttons: Sample CSV & File Upload -->
+        <div class="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onclick="loadSampleCSV()"
+            class="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold transition"
+          >
+            ✨ نمونہ CSV بھریں (Sample Data)
+          </button>
+
+          <label class="px-3 py-2 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border border-indigo-200 text-xs font-bold cursor-pointer transition">
+            📂 .CSV فائل منتخب کریں
+            <input id="csvFileInput" type="file" accept=".csv,text/csv" onchange="handleCSVFileUpload(event)" class="hidden" />
+          </label>
+
+          <button
+            type="button"
+            onclick="clearAllStudents()"
+            class="px-3 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold transition mr-auto"
+          >
+            تمام طلبہ ہٹائیں
+          </button>
+        </div>
+
+        <!-- Supported Format Explanation -->
+        <div class="rounded-xl bg-slate-50 border border-slate-200 p-3 text-xs text-slate-600 leading-relaxed">
+          <strong class="text-slate-800">تائید شدہ فارمیٹس (Auto-Detected):</strong>
+          <ul class="list-disc list-inside mt-1 space-y-0.5 eng-text">
+            <li><code>ID, Name, Class</code> (e.g. <code>175, Ali Raza, Class 6</code>)</li>
+            <li><code>ID, Name, Father Name, Class</code> (e.g. <code>1550, Ayesha Noor, Tariq Mehmood, Class 8</code>)</li>
+            <li>Tab-separated rows pasted directly from Google Sheets / Excel also work automatically.</li>
+          </ul>
+        </div>
+
+        <!-- CSV Textarea -->
+        <div>
+          <label for="csvTextarea" class="block text-xs font-bold text-slate-700 mb-1.5">
+            CSV قطاریں یہاں پیسٹ کریں (Paste CSV Rows Here):
+          </label>
+          <textarea
+            id="csvTextarea"
+            rows="9"
+            placeholder="ID,Name,Father Name,Class&#10;175,Ali Raza,Tariq Mahmood,Class 6&#10;176,Fatima Bibi,Muhammad Akram,Class 6&#10;1550,Usman Ghani,Khalid Hussain,Class 8"
+            class="w-full p-3 rounded-xl border border-slate-300 focus:border-teal-600 focus:ring-2 focus:ring-teal-500/20 outline-none text-xs leading-relaxed ltr-num bg-slate-50/50"
+          ></textarea>
+        </div>
+
+        <!-- Save CSV Button -->
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <div id="csvParsePreview" class="text-xs text-slate-500"></div>
+          <button
+            type="button"
+            onclick="saveStudentsFromTextarea()"
+            class="px-5 py-3 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-sm font-bold shadow transition"
+          >
+            💾 ڈیٹا فون میں محفوظ کریں (Save Offline)
+          </button>
+        </div>
+      </div>
+
+      <!-- Loaded Students Quick Preview Table -->
+      <div class="bg-white rounded-2xl shadow-sm border border-slate-200/80 p-4 space-y-3">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <h3 class="text-sm font-bold text-slate-800">📋 محفوظ شدہ طلبہ کی فہرست (Saved Students Preview)</h3>
+          <input
+            id="studentSearchInput"
+            type="text"
+            oninput="renderStudentsPreview()"
+            placeholder="ID، نام یا کلاس تلاش کریں..."
+            class="px-3 py-1.5 rounded-xl border border-slate-300 text-xs w-full sm:w-56"
+          />
+        </div>
+        <div class="overflow-x-auto max-h-72 rounded-xl border border-slate-200">
+          <table class="w-full text-xs text-right border-collapse">
+            <thead class="bg-slate-100 text-slate-700 sticky top-0">
+              <tr>
+                <th class="py-2 px-3 font-bold">ID</th>
+                <th class="py-2 px-3 font-bold">Name</th>
+                <th class="py-2 px-3 font-bold">Father Name</th>
+                <th class="py-2 px-3 font-bold">Class</th>
+              </tr>
+            </thead>
+            <tbody id="studentsPreviewBody" class="divide-y divide-slate-100 ltr-num">
+              <tr>
+                <td colspan="4" class="py-4 text-center text-slate-400">کوئی طالبعلم محفوظ نہیں۔</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Bottom Navigation Bar (Mobile App Feel) -->
+  <nav class="fixed bottom-0 inset-x-0 z-40 bg-white/95 backdrop-blur border-t border-slate-200 shadow-[0_-4px_16px_rgba(0,0,0,0.06)]">
+    <div class="max-w-3xl mx-auto grid grid-cols-3 gap-1 p-1.5">
+      <button
+        id="nav-scanner"
+        type="button"
+        onclick="switchTab('scanner')"
+        class="py-2 px-2 rounded-xl flex flex-col items-center justify-center gap-0.5 text-xs font-bold bg-teal-50 text-teal-800 transition"
+      >
+        <span class="text-base">📷</span>
+        <span>اسکینر (Scan)</span>
+      </button>
+
+      <button
+        id="nav-reports"
+        type="button"
+        onclick="switchTab('reports')"
+        class="py-2 px-2 rounded-xl flex flex-col items-center justify-center gap-0.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition"
+      >
+        <span class="text-base">📊</span>
+        <span>رپورٹس (Report)</span>
+      </button>
+
+      <button
+        id="nav-csv"
+        type="button"
+        onclick="switchTab('csv')"
+        class="py-2 px-2 rounded-xl flex flex-col items-center justify-center gap-0.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition"
+      >
+        <span class="text-base">📄</span>
+        <span>CSV ڈیٹا</span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- Android / iPhone Add to Home Screen Guide Modal -->
+  <div id="guideModal" class="hidden fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl max-w-lg w-full p-5 shadow-2xl space-y-4 max-h-[88vh] overflow-y-auto">
+      <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+        <h3 class="text-base sm:text-lg font-bold text-slate-900">📱 اینڈرائیڈ فون پر ایپ کیسے محفوظ اور استعمال کریں؟</h3>
+        <button type="button" onclick="toggleGuideModal(false)" class="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 font-bold text-slate-700">✕</button>
+      </div>
+
+      <div class="space-y-3 text-xs sm:text-sm text-slate-700 leading-relaxed">
+        <div class="p-3 rounded-xl bg-teal-50 border border-teal-200">
+          <p class="font-bold text-teal-900 mb-1">1. فائل فون میں محفوظ کریں:</p>
+          <p>اس HTML فائل (<span class="eng-text font-semibold">paragon_school_attendance.html</span>) کو اپنے اینڈرائیڈ فون کی میموری/ڈاؤن لوڈز میں محفوظ کریں۔</p>
+        </div>
+
+        <div class="p-3 rounded-xl bg-emerald-50 border border-emerald-200">
+          <p class="font-bold text-emerald-900 mb-1">2. ہوم اسکرین پر ایپ کا آئیکن بنائیں (Add to Home Screen):</p>
+          <p>• فائل کو <strong>Google Chrome</strong> (یا iPhone میں <strong>Safari</strong>) میں کھولیں۔</p>
+          <p>• اوپر دائیں جانب <strong>⋮ (تین نقطے)</strong> پر کلک کریں اور <strong>"Add to Home screen"</strong> یا <strong>"Install app"</strong> دبائیں۔</p>
+          <p>• اب آپ کے فون کی ہوم اسکرین پر ایک الگ ایپ آئیکن بن جائے گا۔</p>
+        </div>
+
+        <div class="p-3 rounded-xl bg-amber-50 border border-amber-200">
+          <p class="font-bold text-amber-900 mb-1">3. روزانہ گیٹ پر استعمال کا طریقہ:</p>
+          <p>• <strong>CSV ڈیٹا</strong> ٹیب میں بچوں کی لسٹ ایک بار پیسٹ کر کے محفوظ کر لیں۔</p>
+          <p>• <strong>اسکینر</strong> ٹیب میں کیمرہ آن کریں؛ بچے کیو آر کوڈ سامنے لاتے جائیں گے، بیپ بجے گی، اور <strong>رپورٹس</strong> ٹیب میں پورے اسکول و کلاس وائز حاضر/غیر حاضر اور فیصد خود بخود بنتی جائے گی۔</p>
+        </div>
+      </div>
+
+      <div class="pt-2 flex justify-end">
+        <button type="button" onclick="toggleGuideModal(false)" class="px-5 py-2.5 rounded-xl bg-teal-700 hover:bg-teal-800 text-white text-xs sm:text-sm font-bold">
+          سمجھ آ گیا ✓
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Confirm Clear Attendance Modal (Custom non-alert modal) -->
+  <div id="clearModal" class="hidden fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl max-w-sm w-full p-5 shadow-2xl space-y-4">
+      <h3 class="text-base font-bold text-rose-700">⚠ حاضری صاف کرنے کی تصدیق</h3>
+      <p id="clearModalText" class="text-xs sm:text-sm text-slate-600 leading-relaxed">
+        کیا آپ واقعی منتخب تاریخ کی تمام حاضری ختم کرنا چاہتے ہیں؟ یہ عمل واپس نہیں ہو سکے گا۔
+      </p>
+      <div class="flex justify-end gap-2 pt-2">
+        <button type="button" onclick="closeClearAttendanceModal()" class="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold">
+          منسوخ
+        </button>
+        <button type="button" onclick="confirmClearAttendance()" class="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold">
+          جی ہاں، صاف کر دیں
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    /**
+     * STORAGE KEYS & STATE
+     * All data is persisted locally in localStorage so the app works offline
+     * on the device without external server roundtrips for attendance/reports.
+     */
+    const STORAGE_KEYS = {
+      STUDENTS: 'paragon_offline_students_v1',
+      ATTENDANCE: 'paragon_offline_attendance_v1',
+      SETTINGS: 'paragon_offline_settings_v1'
+    };
+
+    let state = {
+      students: [],       // Array of { id, name, fatherName, className }
+      attendance: [],     // Array of { id, date, time, timestamp } (one record per student per date)
+      settings: {
+        cooldownSec: 5,
+        soundEnabled: true
+      }
+    };
+
+    // Scanner runtime variables
+    let html5QrCode = null;
+    let isScannerRunning = false;
+    const recentScanTimestamps = new Map(); // id -> epoch ms for anti-duplicate cooldown
+    let audioCtx = null;
+    let lastAbsentCopyText = '';
+
+    /**
+     * Get local YYYY-MM-DD date string safely in local timezone
+     */
+    function getLocalDateString(dateObj = new Date()) {
+      const year = dateObj.getFullYear();
+      const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+      const day = String(dateObj.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    }
+
+    /**
+     * Get formatted 12-hour/24-hour time string
+     */
+    function getFormattedTime(dateObj = new Date()) {
+      return dateObj.toLocaleTimeString('en-PK', {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit'
+      });
+    }
+
+    /**
+     * Show non-blocking floating toast notification
+     */
+    function showToast(message, type = 'info') {
+      const container = document.getElementById('toastContainer');
+      const palette = {
+        success: 'bg-emerald-700 text-white border-emerald-500',
+        warning: 'bg-amber-600 text-white border-amber-400',
+        error: 'bg-rose-700 text-white border-rose-500',
+        info: 'bg-slate-800 text-white border-slate-600'
+      };
+      const el = document.createElement('div');
+      el.className = `toast-anim px-4 py-2.5 rounded-xl border shadow-lg text-xs sm:text-sm font-bold text-center ${palette[type] || palette.info}`;
+      el.textContent = message;
+      container.appendChild(el);
+
+      setTimeout(() => {
+        el.style.opacity = '0';
+        el.style.transition = 'opacity 0.2s ease';
+        setTimeout(() => el.remove(), 220);
+      }, 2400);
+    }
+
+    /**
+     * Play a crisp Web Audio API beep sound on successful scan
+     */
+    function playBeep(isDuplicate = false) {
+      if (!state.settings.soundEnabled) return;
+      try {
+        if (!audioCtx) {
+          const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+          audioCtx = new AudioContextClass();
+        }
+        if (audioCtx.state === 'suspended') {
+          audioCtx.resume();
+        }
+        const oscillator = audioCtx.createOscillator();
+        const gainNode = audioCtx.createGain();
+        oscillator.type = isDuplicate ? 'triangle' : 'sine';
+        oscillator.frequency.setValueAtTime(isDuplicate ? 440 : 920, audioCtx.currentTime);
+
+        gainNode.gain.setValueAtTime(0.001, audioCtx.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.25, audioCtx.currentTime + 0.015);
+        gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + (isDuplicate ? 0.14 : 0.16));
+
+        oscillator.connect(gainNode);
+        gainNode.connect(audioCtx.destination);
+
+        oscillator.start();
+        oscillator.stop(audioCtx.currentTime + 0.18);
+      } catch (err) {
+        // Ignore audio errors on restricted devices
+      }
+    }
+
+    function testBeep() {
+      state.settings.soundEnabled = true;
+      document.getElementById('soundToggle').checked = true;
+      saveSettings();
+      playBeep(false);
+      showToast('بیپ آواز ٹیسٹ ہو گئی ✓', 'success');
+    }
+
+    /**
+     * Load & save state in localStorage
+     */
+    function loadState() {
+      try {
+        const rawStudents = localStorage.getItem(STORAGE_KEYS.STUDENTS);
+        const rawAttendance = localStorage.getItem(STORAGE_KEYS.ATTENDANCE);
+        const rawSettings = localStorage.getItem(STORAGE_KEYS.SETTINGS);
+
+        if (rawStudents) {
+          const parsed = JSON.parse(rawStudents);
+          if (Array.isArray(parsed)) state.students = parsed;
+        }
+        if (rawAttendance) {
+          const parsed = JSON.parse(rawAttendance);
+          if (Array.isArray(parsed)) state.attendance = parsed;
+        }
+        if (rawSettings) {
+          const parsed = JSON.parse(rawSettings);
+          state.settings = { ...state.settings, ...parsed };
+        }
+      } catch (err) {
+        console.error('Error loading localStorage state:', err);
+      }
+
+      document.getElementById('cooldownSelect').value = String(state.settings.cooldownSec || 5);
+      document.getElementById('soundToggle').checked = Boolean(state.settings.soundEnabled);
+    }
+
+    function saveStudents() {
+      try {
+        localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(state.students));
+      } catch (err) {
+        showToast('فون اسٹوریج میں بچوں کا ڈیٹا محفوظ کرتے وقت مسئلہ آیا', 'error');
+      }
+    }
+
+    function saveAttendance() {
+      try {
+        localStorage.setItem(STORAGE_KEYS.ATTENDANCE, JSON.stringify(state.attendance));
+      } catch (err) {
+        showToast('حاضری محفوظ کرتے وقت اسٹوریج میں جگہ کم ہے', 'error');
+      }
+    }
+
+    function saveSettings() {
+      state.settings.cooldownSec = Number(document.getElementById('cooldownSelect').value) || 5;
+      state.settings.soundEnabled = Boolean(document.getElementById('soundToggle').checked);
+      try {
+        localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(state.settings));
+      } catch (err) {
+        // Ignore
+      }
+    }
+
+    /**
+     * Tab switching helper
+     */
+    function switchTab(tabName) {
+      const tabs = ['scanner', 'reports', 'csv'];
+      tabs.forEach((t) => {
+        const section = document.getElementById(`tab-${t}`);
+        const navBtn = document.getElementById(`nav-${t}`);
+        if (t === tabName) {
+          section.classList.remove('hidden');
+          navBtn.className = 'py-2 px-2 rounded-xl flex flex-col items-center justify-center gap-0.5 text-xs font-bold bg-teal-50 text-teal-800 transition';
+        } else {
+          section.classList.add('hidden');
+          navBtn.className = 'py-2 px-2 rounded-xl flex flex-col items-center justify-center gap-0.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition';
+        }
+      });
+
+      if (tabName === 'reports') {
+        renderReports();
+      } else if (tabName === 'csv') {
+        renderStudentsPreview();
+      } else if (tabName === 'scanner') {
+        renderRecentScans();
+      }
+    }
+
+    /**
+     * Update student counters & no-data banner across UI
+     */
+    function updateStudentBadges() {
+      const count = state.students.length;
+      document.getElementById('headerStudentBadge').textContent = `${count} Students`;
+      document.getElementById('csvTabStudentCount').textContent = `${count} Saved`;
+
+      const noBanner = document.getElementById('noStudentsBanner');
+      if (count === 0) {
+        noBanner.classList.remove('hidden');
+      } else {
+        noBanner.classList.add('hidden');
+      }
+    }
+
+    /**
+     * Parse raw CSV/TSV text into clean student objects
+     * Supports:
+     * - ID, Name, Class
+     * - ID, Name, Father Name, Class
+     * - Comma (,) or Tab (\t) separated rows
+     */
+    function parseCSVText(rawText) {
+      const lines = rawText
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter((line) => line.length > 0);
+
+      if (lines.length === 0) return [];
+
+      // Detect delimiter (tab from Excel/Sheets vs comma)
+      const delimiter = lines[0].includes('\t') && !lines[0].includes(',') ? '\t' : ',';
+
+      function splitRow(row) {
+        const result = [];
+        let current = '';
+        let inQuotes = false;
+        for (let i = 0; i < row.length; i++) {
+          const ch = row[i];
+          if (ch === '"') {
+            inQuotes = !inQuotes;
+          } else if (ch === delimiter && !inQuotes) {
+            result.push(current.trim());
+            current = '';
+          } else {
+            current += ch;
+          }
+        }
+        result.push(current.trim());
+        return result.map((v) => v.replace(/^"|"$/g, '').trim());
+      }
+
+      const studentsMap = new Map();
+
+      lines.forEach((line, idx) => {
+        const cols = splitRow(line);
+        if (cols.length < 2) return;
+
+        // Skip header row if first cell looks like 'id' or 'student id'
+        const firstLower = cols[0].toLowerCase().replace(/[^a-z0-9]/g, '');
+        if (idx === 0 && (firstLower === 'id' || firstLower === 'studentid' || firstLower === 'rollno')) {
+          return;
+        }
+
+        const cleanId = cols[0].replace(/[^0-9A-Za-z_-]/g, '').trim();
+        if (!cleanId) return;
+
+        let name = '';
+        let fatherName = '';
+        let className = '';
+
+        if (cols.length >= 4) {
+          // Format: ID, Name, Father Name, Class
+          name = cols[1] || `Student ${cleanId}`;
+          fatherName = cols[2] || '';
+          className = cols[3] || 'Unassigned';
+        } else if (cols.length === 3) {
+          // Format: ID, Name, Class
+          name = cols[1] || `Student ${cleanId}`;
+          className = cols[2] || 'Unassigned';
+        } else {
+          // Format: ID, Name
+          name = cols[1] || `Student ${cleanId}`;
+          className = 'Unassigned';
+        }
+
+        studentsMap.set(cleanId, {
+          id: cleanId,
+          name,
+          fatherName,
+          className: className || 'Unassigned'
+        });
+      });
+
+      return Array.from(studentsMap.values());
+    }
+
+    function loadSampleCSV() {
+      const sample = [
+        'ID,Name,Father Name,Class',
+        '175,Ali Raza,Tariq Mahmood,Class 6',
+        '176,Fatima Bibi,Muhammad Akram,Class 6',
+        '177,Bilal Ahmed,Abdul Rehman,Class 6',
+        '178,Zainab Tariq,Tariq Aziz,Class 6',
+        '1550,Usman Ghani,Khalid Hussain,Class 8',
+        '1551,Ayesha Noor,Shahid Iqbal,Class 8',
+        '1552,Hamza Ali,Naveed Ahmad,Class 8',
+        '1656,Hassan Raza,Imran Siddiqui,Class 10',
+        '1657,Maryam Nawaz,Farooq Ahmad,Class 10'
+      ].join('\n');
+
+      document.getElementById('csvTextarea').value = sample;
+      document.getElementById('csvParsePreview').textContent = 'نمونہ ڈیٹا تیار ہے — محفوظ کرنے کے لیے بٹن دبائیں۔';
+    }
+
+    function handleCSVFileUpload(event) {
+      const file = event.target.files && event.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = function (e) {
+        const text = String(e.target.result || '');
+        document.getElementById('csvTextarea').value = text;
+        const parsed = parseCSVText(text);
+        document.getElementById('csvParsePreview').textContent = `فائل سے ${parsed.length} طلبہ پڑھے گئے۔`;
+        showToast(`${parsed.length} طلبہ کا ڈیٹا لوڈ ہوا — محفوظ کریں`, 'info');
+      };
+      reader.readAsText(file);
+      event.target.value = '';
+    }
+
+    function saveStudentsFromTextarea() {
+      const raw = document.getElementById('csvTextarea').value;
+      const parsed = parseCSVText(raw);
+
+      if (parsed.length === 0) {
+        showToast('کوئی درست CSV قطار نہیں ملی۔ کم از کم ID اور Name درج کریں۔', 'error');
+        return;
+      }
+
+      state.students = parsed;
+      saveStudents();
+      updateStudentBadges();
+      renderStudentsPreview();
+      renderReports();
+      showToast(`${parsed.length} طلبہ کا ڈیٹا آف لائن محفوظ ہو گیا ✓`, 'success');
+    }
+
+    function clearAllStudents() {
+      if (state.students.length === 0) return;
+      state.students = [];
+      saveStudents();
+      updateStudentBadges();
+      renderStudentsPreview();
+      renderReports();
+      showToast('تمام محفوظ طلبہ کا ڈیٹا ہٹا دیا گیا', 'warning');
+    }
+
+    function renderStudentsPreview() {
+      const tbody = document.getElementById('studentsPreviewBody');
+      const query = (document.getElementById('studentSearchInput').value || '').trim().toLowerCase();
+
+      const filtered = state.students.filter((s) => {
+        if (!query) return true;
+        return (
+          s.id.toLowerCase().includes(query) ||
+          s.name.toLowerCase().includes(query) ||
+          (s.fatherName || '').toLowerCase().includes(query) ||
+          (s.className || '').toLowerCase().includes(query)
+        );
+      });
+
+      if (filtered.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="4" class="py-5 text-center text-slate-400">کوئی ریکارڈ نہیں ملا۔</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = filtered
+        .slice(0, 200)
+        .map(
+          (s) => `
+          <tr class="hover:bg-slate-50">
+            <td class="py-2 px-3 font-bold text-teal-800">${escapeHtml(s.id)}</td>
+            <td class="py-2 px-3 font-semibold text-slate-900">${escapeHtml(s.name)}</td>
+            <td class="py-2 px-3 text-slate-600">${escapeHtml(s.fatherName || '-')}</td>
+            <td class="py-2 px-3"><span class="px-2 py-0.5 rounded-md bg-slate-100 text-slate-800 font-semibold">${escapeHtml(s.className)}</span></td>
+          </tr>
+        `
+        )
+        .join('');
+    }
+
+    /**
+     * Extract clean Student ID from raw QR text (supports raw ID "175" or URL "...?id=175")
+     */
+    function extractStudentId(decodedText) {
+      if (!decodedText) return '';
+      const trimmed = String(decodedText).trim();
+
+      // Try URL parameter extraction if it looks like a URL or contains id=
+      const idParamMatch = trimmed.match(/[?&]id=([^&\s]+)/i);
+      if (idParamMatch && idParamMatch[1]) {
+        return decodeURIComponent(idParamMatch[1]).replace(/[^0-9A-Za-z_-]/g, '').trim();
+      }
+
+      // Otherwise strip any accidental leading/trailing parentheses or whitespace
+      return trimmed.replace(/^[()]+|[()]+$/g, '').replace(/[^0-9A-Za-z_-]/g, '').trim();
+    }
+
+    /**
+     * Core attendance recording handler for both camera scan and manual input
+     */
+    function recordAttendanceById(rawInput, source = 'camera') {
+      const studentId = extractStudentId(rawInput);
+      if (!studentId) {
+        if (source === 'manual') {
+          showToast('براہِ کرم درست Student ID درج کریں', 'warning');
+        }
+        return;
+      }
+
+      const now = new Date();
+      const nowMs = now.getTime();
+      const cooldownMs = (state.settings.cooldownSec || 5) * 1000;
+
+      // Prevent accidental rapid double-scan within cooldown window
+      const prevScanMs = recentScanTimestamps.get(studentId);
+      if (prevScanMs && nowMs - prevScanMs < cooldownMs) {
+        return;
+      }
+      recentScanTimestamps.set(studentId, nowMs);
+
+      const student = state.students.find((s) => s.id === studentId);
+      const todayStr = getLocalDateString(now);
+      const timeStr = getFormattedTime(now);
+
+      const existingTodayIndex = state.attendance.findIndex(
+        (rec) => rec.id === studentId && rec.date === todayStr
+      );
+
+      let statusLabel = 'Present (حاضر)';
+      let alreadyMarkedToday = false;
+
+      if (existingTodayIndex === -1) {
+        state.attendance.unshift({
+          id: studentId,
+          date: todayStr,
+          time: timeStr,
+          timestamp: nowMs
+        });
+        saveAttendance();
+        playBeep(false);
+      } else {
+        alreadyMarkedToday = true;
+        statusLabel = 'Already Present Today (پہلے ہی حاضر)';
+        playBeep(true);
+      }
+
+      updateScanFeedbackCard({
+        id: studentId,
+        name: student ? student.name : 'نامعلوم طالبعلم (Not in CSV)',
+        fatherName: student ? student.fatherName : '',
+        className: student ? student.className : 'Unknown Class',
+        knownStudent: Boolean(student),
+        alreadyMarkedToday,
+        statusLabel,
+        time: timeStr
+      });
+
+      renderRecentScans();
+    }
+
+    function updateScanFeedbackCard(info) {
+      const card = document.getElementById('scanFeedbackCard');
+      const container = document.getElementById('scanFeedbackContent');
+
+      if (!info.knownStudent) {
+        card.className = 'bg-amber-50 rounded-2xl shadow-sm border-2 border-amber-400 p-4 transition-all';
+      } else if (info.alreadyMarkedToday) {
+        card.className = 'bg-sky-50 rounded-2xl shadow-sm border-2 border-sky-300 p-4 transition-all';
+      } else {
+        card.className = 'bg-emerald-50 rounded-2xl shadow-sm border-2 border-emerald-500 p-4 transition-all';
+      }
+
+      container.innerHTML = `
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <div class="flex items-center gap-2">
+              <span class="px-2.5 py-0.5 rounded-lg bg-slate-900 text-white text-xs font-extrabold ltr-num">ID: ${escapeHtml(info.id)}</span>
+              <span class="text-base sm:text-lg font-extrabold text-slate-900 eng-text">${escapeHtml(info.name)}</span>
+            </div>
+            <div class="text-xs text-slate-600 mt-1 flex flex-wrap items-center gap-3">
+              <span>کلاس: <strong class="eng-text text-slate-800">${escapeHtml(info.className)}</strong></span>
+              ${info.fatherName ? `<span>والد: <strong class="eng-text text-slate-800">${escapeHtml(info.fatherName)}</strong></span>` : ''}
+              <span>وقت: <strong class="ltr-num text-slate-800">${escapeHtml(info.time)}</strong></span>
+            </div>
+          </div>
+          <span class="px-3 py-1.5 rounded-xl text-xs font-extrabold ${
+            !info.knownStudent
+              ? 'bg-amber-200 text-amber-950'
+              : info.alreadyMarkedToday
+              ? 'bg-sky-200 text-sky-950'
+              : 'bg-emerald-600 text-white'
+          }">
+            ${escapeHtml(info.statusLabel)}
+          </span>
+        </div>
+        ${
+          !info.knownStudent
+            ? '<p class="text-[11px] text-amber-800 mt-2 font-semibold">نوٹ: یہ ID حاضری میں درج ہو گئی ہے، تاہم CSV لسٹ میں اس ID کا ریکارڈ موجود نہیں۔</p>'
+            : ''
+        }
+      `;
+    }
+
+    function handleManualIdSubmit() {
+      const input = document.getElementById('manualIdInput');
+      const val = input.value.trim();
+      if (!val) {
+        showToast('کوئی ID درج کریں', 'warning');
+        return;
+      }
+      recordAttendanceById(val, 'manual');
+      input.value = '';
+      input.focus();
+    }
+
+    function renderRecentScans() {
+      const todayStr = getLocalDateString();
+      const todayRecords = state.attendance.filter((r) => r.date === todayStr);
+      const uniqueIds = new Set(todayRecords.map((r) => r.id));
+
+      document.getElementById('todayScanCountPill').textContent = `${uniqueIds.size} Present`;
+
+      const listEl = document.getElementById('recentScansList');
+      if (todayRecords.length === 0) {
+        listEl.innerHTML = `<p class="text-slate-400 py-3 text-center">آج کی حاضری کا کوئی ریکارڈ موجود نہیں۔</p>`;
+        return;
+      }
+
+      listEl.innerHTML = todayRecords
+        .slice(0, 25)
+        .map((rec) => {
+          const st = state.students.find((s) => s.id === rec.id);
+          const name = st ? st.name : `ID ${rec.id}`;
+          const cls = st ? st.className : '-';
+          return `
+            <div class="py-2 flex items-center justify-between gap-2">
+              <div class="flex items-center gap-2 min-w-0">
+                <span class="px-2 py-0.5 rounded bg-teal-50 text-teal-800 font-bold ltr-num shrink-0">${escapeHtml(rec.id)}</span>
+                <span class="font-semibold text-slate-800 truncate eng-text">${escapeHtml(name)}</span>
+                <span class="text-[11px] text-slate-500 eng-text shrink-0">(${escapeHtml(cls)})</span>
+              </div>
+              <span class="text-[11px] font-semibold text-slate-500 ltr-num shrink-0">${escapeHtml(rec.time)}</span>
+            </div>
+          `;
+        })
+        .join('');
+    }
+
+    /**
+     * Continuous Camera Scanner using html5-qrcode
+     */
+    async function startScanner() {
+      if (isScannerRunning) return;
+
+      const statusPill = document.getElementById('scannerStatusPill');
+      const startBtn = document.getElementById('btnStartCamera');
+      const stopBtn = document.getElementById('btnStopCamera');
+      const fallbackBox = document.getElementById('cameraFallbackBox');
+
+      if (typeof Html5Qrcode === 'undefined') {
+        fallbackBox.classList.remove('hidden');
+        showToast('کیمرہ لائبریری لوڈ نہیں ہو سکی — دستی ID انٹری استعمال کریں', 'warning');
+        return;
+      }
+
+      try {
+        if (!html5QrCode) {
+          html5QrCode = new Html5Qrcode('qr-reader');
+        }
+
+        const config = {
+          fps: 12,
+          qrbox: (viewfinderWidth, viewfinderHeight) => {
+            const minEdge = Math.min(viewfinderWidth, viewfinderHeight);
+            const size = Math.max(180, Math.min(280, Math.floor(minEdge * 0.72)));
+            return { width: size, height: size };
+          },
+          rememberLastUsedCamera: true
+        };
+
+        await html5QrCode.start(
+          { facingMode: 'environment' },
+          config,
+          (decodedText) => {
+            // Keep camera running continuously without stopping or navigating away
+            recordAttendanceById(decodedText, 'camera');
+          },
+          () => {
+            // Frame scan miss is normal while searching for QR code
+          }
+        );
+
+        isScannerRunning = true;
+        startBtn.disabled = true;
+        stopBtn.disabled = false;
+        statusPill.textContent = '🟢 کیمرہ فعال (Scanning...)';
+        statusPill.className = 'px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800';
+        fallbackBox.classList.add('hidden');
+      } catch (err) {
+        console.error('Camera start failed:', err);
+        fallbackBox.classList.remove('hidden');
+        statusPill.textContent = 'کیمرہ دستیاب نہیں';
+        statusPill.className = 'px-3 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800';
+        showToast('کیمرہ اجازت یا کنکشن چیک کریں۔ دستی ID انٹری دستیاب ہے۔', 'warning');
+      }
+    }
+
+    async function stopScanner() {
+      const statusPill = document.getElementById('scannerStatusPill');
+      const startBtn = document.getElementById('btnStartCamera');
+      const stopBtn = document.getElementById('btnStopCamera');
+
+      if (html5QrCode && isScannerRunning) {
+        try {
+          await html5QrCode.stop();
+        } catch (err) {
+          // Ignore stop errors
+        }
+      }
+
+      isScannerRunning = false;
+      startBtn.disabled = false;
+      stopBtn.disabled = true;
+      statusPill.textContent = 'کیمرہ بند';
+      statusPill.className = 'px-3 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-700';
+    }
+
+    /**
+     * REPORTS & ANALYTICS (Whole School + Class-Wise + Absent List)
+     */
+    function renderReports() {
+      const dateInput = document.getElementById('reportDateInput');
+      if (!dateInput.value) {
+        dateInput.value = getLocalDateString();
+      }
+      const selectedDate = dateInput.value;
+
+      // Unique present IDs on selected date
+      const presentIdSet = new Set(
+        state.attendance
+          .filter((rec) => rec.date === selectedDate)
+          .map((rec) => rec.id)
+      );
+
+      // Whole school totals based on saved CSV students
+      const totalStudents = state.students.length;
+      const presentCount = state.students.filter((s) => presentIdSet.has(s.id)).length;
+      const absentCount = Math.max(0, totalStudents - presentCount);
+
+      const presentPct = totalStudents > 0 ? ((presentCount / totalStudents) * 100).toFixed(1) : '0.0';
+      const absentPct = totalStudents > 0 ? ((absentCount / totalStudents) * 100).toFixed(1) : '0.0';
+
+      document.getElementById('sumTotalStudents').textContent = String(totalStudents);
+      document.getElementById('sumPresent').textContent = String(presentCount);
+      document.getElementById('sumAbsent').textContent = String(absentCount);
+      document.getElementById('sumPresentPct').textContent = `${presentPct}%`;
+      document.getElementById('sumAbsentPct').textContent = `${absentPct}%`;
+
+      // Group students by class
+      const classMap = new Map();
+      state.students.forEach((student) => {
+        const cls = student.className || 'Unassigned';
+        if (!classMap.has(cls)) {
+          classMap.set(cls, {
+            className: cls,
+            total: 0,
+            present: 0,
+            absentStudents: []
+          });
+        }
+        const entry = classMap.get(cls);
+        entry.total += 1;
+        if (presentIdSet.has(student.id)) {
+          entry.present += 1;
+        } else {
+          entry.absentStudents.push(student);
+        }
+      });
+
+      const tbody = document.getElementById('classWiseTableBody');
+      const sortedClasses = Array.from(classMap.values()).sort((a, b) =>
+        a.className.localeCompare(b.className, undefined, { numeric: true, sensitivity: 'base' })
+      );
+
+      if (sortedClasses.length === 0) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="6" class="py-6 text-center text-slate-400">
+              کوئی کلاس نہیں ملی۔ پہلے <strong>CSV ڈیٹا</strong> ٹیب میں طلبہ کی لسٹ محفوظ کریں۔
+            </td>
+          </tr>
+        `;
+        return;
+      }
+
+      tbody.innerHTML = sortedClasses
+        .map((c) => {
+          const absent = Math.max(0, c.total - c.present);
+          const cPresentPct = c.total > 0 ? ((c.present / c.total) * 100).toFixed(1) : '0.0';
+          const cAbsentPct = c.total > 0 ? ((absent / c.total) * 100).toFixed(1) : '0.0';
+
+          return `
+            <tr class="hover:bg-slate-50 transition">
+              <td class="py-2.5 px-3 font-bold text-slate-900">${escapeHtml(c.className)}</td>
+              <td class="py-2.5 px-2.5 text-center font-semibold text-slate-700">${c.total}</td>
+              <td class="py-2.5 px-2.5 text-center font-bold text-emerald-700">${c.present}</td>
+              <td class="py-2.5 px-2.5 text-center">
+                <button
+                  type="button"
+                  onclick="showAbsentForClass('${encodeURIComponent(c.className)}', '${selectedDate}')"
+                  class="px-2.5 py-1 rounded-lg font-extrabold ${
+                    absent > 0
+                      ? 'bg-rose-100 hover:bg-rose-200 text-rose-800 cursor-pointer'
+                      : 'bg-slate-100 text-slate-500 cursor-default'
+                  }"
+                  title="غیر حاضر طلبہ دیکھنے کے لیے کلک کریں"
+                >
+                  ${absent} ${absent > 0 ? '👁' : ''}
+                </button>
+              </td>
+              <td class="py-2.5 px-2.5 text-center font-bold text-teal-700">${cPresentPct}%</td>
+              <td class="py-2.5 px-2.5 text-center font-semibold text-amber-700">${cAbsentPct}%</td>
+            </tr>
+          `;
+        })
+        .join('');
+    }
+
+    function showAbsentForClass(encodedClassName, selectedDate) {
+      const className = decodeURIComponent(encodedClassName);
+      const presentIdSet = new Set(
+        state.attendance.filter((r) => r.date === selectedDate).map((r) => r.id)
+      );
+
+      const absentList = state.students.filter(
+        (s) => (s.className || 'Unassigned') === className && !presentIdSet.has(s.id)
+      );
+
+      const card = document.getElementById('absentDetailsCard');
+      const titleEl = document.getElementById('absentClassTitle');
+      const subEl = document.getElementById('absentClassSubtitle');
+      const listEl = document.getElementById('absentStudentsList');
+
+      card.classList.remove('hidden');
+      titleEl.textContent = `غیر حاضر طلبہ — ${className}`;
+      subEl.textContent = `تاریخ: ${selectedDate} • کل غیر حاضر: ${absentList.length}`;
+
+      if (absentList.length === 0) {
+        lastAbsentCopyText = `${className} (${selectedDate}): All students present.`;
+        listEl.innerHTML = `<div class="col-span-full py-3 text-center text-emerald-700 font-bold bg-emerald-50 rounded-xl">ماشاءاللہ! اس کلاس کے تمام طلبہ حاضر ہیں۔</div>`;
+        return;
+      }
+
+      lastAbsentCopyText = [
+        `Absent Students - ${className} (${selectedDate})`,
+        ...absentList.map((s) => `${s.id} | ${s.name}${s.fatherName ? ' | ' + s.fatherName : ''}`)
+      ].join('\n');
+
+      listEl.innerHTML = absentList
+        .map(
+          (s) => `
+          <div class="p-2.5 rounded-xl bg-rose-50/70 border border-rose-100 flex items-center justify-between gap-2">
+            <div>
+              <span class="font-extrabold text-rose-900 ltr-num">ID: ${escapeHtml(s.id)}</span>
+              <span class="mx-1.5 font-bold text-slate-900 eng-text">${escapeHtml(s.name)}</span>
+              ${s.fatherName ? `<span class="text-[11px] text-slate-500 eng-text">(${escapeHtml(s.fatherName)})</span>` : ''}
+            </div>
+            <span class="px-2 py-0.5 rounded bg-rose-200/80 text-rose-900 font-bold text-[11px]">Absent</span>
+          </div>
+        `
+        )
+        .join('');
+
+      card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
+    function closeAbsentDetails() {
+      document.getElementById('absentDetailsCard').classList.add('hidden');
+    }
+
+    function copyAbsentList() {
+      if (!lastAbsentCopyText) return;
+      try {
+        const tempArea = document.createElement('textarea');
+        tempArea.value = lastAbsentCopyText;
+        document.body.appendChild(tempArea);
+        tempArea.select();
+        document.execCommand('copy');
+        document.body.removeChild(tempArea);
+        showToast('غیر حاضر طلبہ کی لسٹ کاپی ہو گئی ✓', 'success');
+      } catch (err) {
+        showToast('کاپی کرنے میں مسئلہ آیا', 'error');
+      }
+    }
+
+    /**
+     * Export attendance CSV for selected date
+     */
+    function exportAttendanceCSV() {
+      const selectedDate = document.getElementById('reportDateInput').value || getLocalDateString();
+      const presentMap = new Map();
+      state.attendance
+        .filter((r) => r.date === selectedDate)
+        .forEach((r) => {
+          if (!presentMap.has(r.id)) {
+            presentMap.set(r.id, r.time);
+          }
+        });
+
+      const rows = [['Date', 'ID', 'Name', 'Father Name', 'Class', 'Status', 'Time']];
+
+      state.students.forEach((s) => {
+        const isPresent = presentMap.has(s.id);
+        rows.push([
+          selectedDate,
+          s.id,
+          s.name,
+          s.fatherName || '',
+          s.className || '',
+          isPresent ? 'Present' : 'Absent',
+          isPresent ? presentMap.get(s.id) : ''
+        ]);
+      });
+
+      const csvContent = rows
+        .map((r) => r.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+        .join('\n');
+
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Paragon_Attendance_${selectedDate}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      showToast(`${selectedDate} کی حاضری CSV ڈاؤن لوڈ ہو گئی ✓`, 'success');
+    }
+
+    /**
+     * Clear attendance modal handlers
+     */
+    function openClearAttendanceModal() {
+      const selectedDate = document.getElementById('reportDateInput').value || getLocalDateString();
+      document.getElementById('clearModalText').textContent =
+        `کیا آپ واقعی تاریخ ${selectedDate} کی تمام حاضری ختم کرنا چاہتے ہیں؟ یہ عمل واپس نہیں ہو سکے گا۔`;
+      document.getElementById('clearModal').classList.remove('hidden');
+    }
+
+    function closeClearAttendanceModal() {
+      document.getElementById('clearModal').classList.add('hidden');
+    }
+
+    function confirmClearAttendance() {
+      const selectedDate = document.getElementById('reportDateInput').value || getLocalDateString();
+      state.attendance = state.attendance.filter((r) => r.date !== selectedDate);
+      saveAttendance();
+      closeClearAttendanceModal();
+      closeAbsentDetails();
+      renderReports();
+      renderRecentScans();
+      showToast(`${selectedDate} کی حاضری صاف کر دی گئی`, 'warning');
+    }
+
+    /**
+     * Install Guide Modal toggle
+     */
+    function toggleGuideModal(show) {
+      const modal = document.getElementById('guideModal');
+      if (show) {
+        modal.classList.remove('hidden');
+      } else {
+        modal.classList.add('hidden');
+      }
+    }
+
+    /**
+     * HTML escape helper to prevent any text injection issues
+     */
+    function escapeHtml(str) {
+      return String(str || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    /**
+     * Initialize app on window load
+     */
+    window.addEventListener('DOMContentLoaded', () => {
+      loadState();
+      updateStudentBadges();
+      document.getElementById('reportDateInput').value = getLocalDateString();
+      renderRecentScans();
+      renderStudentsPreview();
+      renderReports();
+    });
+  </script>
+</body>
+</html>
